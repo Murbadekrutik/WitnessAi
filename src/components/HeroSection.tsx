@@ -1,6 +1,7 @@
 import { Shield, Mic, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+import shieldHero from "@/assets/shield-hero.jpg";
 
 interface HeroSectionProps {
   onStartRecording: () => void;
