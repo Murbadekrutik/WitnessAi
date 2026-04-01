@@ -12,6 +12,7 @@ const HeroSection = ({ onStartRecording }: HeroSectionProps) => {
     <section className="relative min-h-screen flex items-center justify-center px-4 overflow-hidden">
       {/* Background glow */}
       <div className="absolute inset-0 pointer-events-none">
+        <img src={shieldHero} alt="" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] opacity-10 blur-sm" width={1280} height={720} />
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-3xl" />
       </div>
 
