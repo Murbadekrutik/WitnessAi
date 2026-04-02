@@ -141,8 +141,13 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <Mic className="w-16 h-16 text-muted-foreground/30 mb-4" />
                 <p className="text-muted-foreground">Press the button below to start a recording session</p>
+                {!isSupported && (
+                  <p className="text-xs text-danger mt-2">
+                    ⚠️ Your browser doesn't support Speech Recognition. Use Chrome or Edge.
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground/60 mt-2">
-                  Demo mode: simulated interrogation transcript
+                  Uses your microphone to transcribe speech in real time
                 </p>
               </div>
             )}
@@ -150,7 +155,7 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
               <div className="flex items-center justify-center h-full">
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <div className="w-2 h-2 rounded-full bg-primary animate-pulse-record" />
-                  <span className="text-sm">Listening...</span>
+                  <span className="text-sm">Listening... speak now</span>
                 </div>
               </div>
             )}
@@ -181,6 +186,15 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
                 </div>
               </motion.div>
             ))}
+            {/* Interim (live) transcription */}
+            {interimText && (
+              <div className="p-3 rounded-lg border border-border/50 bg-card/50">
+                <div className="flex items-start gap-2">
+                  <MicVocal className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5 animate-pulse" />
+                  <p className="text-sm text-muted-foreground italic">{interimText}</p>
+                </div>
+              </div>
+            )}
             <div ref={transcriptEndRef} />
           </div>
 
@@ -188,7 +202,7 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
           <div className="p-4 border-t border-border bg-card">
             <div className="flex justify-center">
               {!isRecording ? (
-                <Button variant="hero" size="lg" className="px-10 py-6" onClick={startRecording}>
+                <Button variant="hero" size="lg" className="px-10 py-6" onClick={startRecording} disabled={!isSupported}>
                   <Mic className="w-5 h-5" />
                   Start Recording
                 </Button>
@@ -198,17 +212,3 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
                   Stop Recording
                 </Button>
               )}
-            </div>
-          </div>
-        </div>
-
-        {/* Rights sidebar */}
-        <aside className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-border bg-card p-4">
-          <RightsPanel />
-        </aside>
-      </div>
-    </div>
-  );
-};
-
-export default RecordingInterface;
