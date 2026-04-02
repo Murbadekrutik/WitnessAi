@@ -212,3 +212,17 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
                   Stop Recording
                 </Button>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* Rights sidebar */}
+        <aside className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l border-border bg-card p-4">
+          <RightsPanel />
+        </aside>
+      </div>
+    </div>
+  );
+};
+
+export default RecordingInterface;
