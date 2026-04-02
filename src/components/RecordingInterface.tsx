@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
-import { Mic, MicOff, Shield, AlertTriangle, ArrowLeft } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Mic, MicOff, Shield, AlertTriangle, ArrowLeft, MicVocal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import RightsPanel from "./RightsPanel";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
 interface TranscriptEntry {
   id: number;
@@ -21,16 +22,6 @@ const DANGEROUS_PATTERNS = [
   { pattern: /tell (me|us) (the truth|everything|what happened)/i, reason: "You have the right to remain silent under Article 20(3)." },
   { pattern: /you (better|must|have to) (answer|tell|speak|talk)/i, reason: "This is coercion. You are NOT compelled to speak." },
 ];
-
-const SIMULATED_TRANSCRIPT: { text: string; delay: number }[] = [
-  { text: "Officer: Please state your name for the record.", delay: 2000 },
-  { text: "Officer: Where were you last night between 10 PM and 2 AM?", delay: 4000 },
-  { text: "Officer: We have witnesses. You better tell us the truth.", delay: 7000 },
-  { text: "Officer: Did you do it? Just confess and it will be easier.", delay: 10000 },
-  { text: "Officer: Sign this document, it's just a formality.", delay: 13000 },
-  { text: "Officer: Who else was with you that night?", delay: 16000 },
-];
-
 interface RecordingInterfaceProps {
   onBack: () => void;
 }
@@ -41,7 +32,34 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
   const [activeAlert, setActiveAlert] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
-  const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
+  const entryIdRef = useRef(0);
+
+  const checkDangerous = (text: string) => {
+    for (const { pattern, reason } of DANGEROUS_PATTERNS) {
+      if (pattern.test(text)) return reason;
+    }
+    return null;
+  };
+
+  const handleSpeechResult = useCallback((text: string) => {
+    const flagReason = checkDangerous(text);
+    const id = entryIdRef.current++;
+    const entry: TranscriptEntry = {
+      id,
+      timestamp: formatTime(elapsed),
+      text,
+      flagged: !!flagReason,
+      flagReason: flagReason || undefined,
+    };
+    setTranscript((prev) => [...prev, entry]);
+    if (flagReason) {
+      setActiveAlert(flagReason);
+      setTimeout(() => setActiveAlert(null), 4000);
+    }
+  }, [elapsed]);
+
+  const { isListening, isSupported, interimText, start: startListening, stop: stopListening } =
+    useSpeechRecognition({ onResult: handleSpeechResult });
 
   useEffect(() => {
     if (!isRecording) return;
@@ -53,48 +71,25 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [transcript]);
 
-  const checkDangerous = (text: string) => {
-    for (const { pattern, reason } of DANGEROUS_PATTERNS) {
-      if (pattern.test(text)) return reason;
-    }
-    return null;
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
   const startRecording = () => {
     setIsRecording(true);
     setTranscript([]);
     setElapsed(0);
-
-    timeoutRefs.current = SIMULATED_TRANSCRIPT.map((item, i) =>
-      setTimeout(() => {
-        const flagReason = checkDangerous(item.text);
-        const entry: TranscriptEntry = {
-          id: i,
-          timestamp: formatTime(item.delay / 1000),
-          text: item.text,
-          flagged: !!flagReason,
-          flagReason: flagReason || undefined,
-        };
-        setTranscript((prev) => [...prev, entry]);
-        if (flagReason) {
-          setActiveAlert(flagReason);
-          setTimeout(() => setActiveAlert(null), 4000);
-        }
-      }, item.delay)
-    );
+    entryIdRef.current = 0;
+    startListening();
   };
 
   const stopRecording = () => {
     setIsRecording(false);
-    timeoutRefs.current.forEach(clearTimeout);
-    timeoutRefs.current = [];
+    stopListening();
   };
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -146,8 +141,13 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <Mic className="w-16 h-16 text-muted-foreground/30 mb-4" />
                 <p className="text-muted-foreground">Press the button below to start a recording session</p>
+                {!isSupported && (
+                  <p className="text-xs text-danger mt-2">
+                    ⚠️ Your browser doesn't support Speech Recognition. Use Chrome or Edge.
+                  </p>
+                )}
                 <p className="text-xs text-muted-foreground/60 mt-2">
-                  Demo mode: simulated interrogation transcript
+                  Uses your microphone to transcribe speech in real time
                 </p>
               </div>
             )}
@@ -155,7 +155,7 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
               <div className="flex items-center justify-center h-full">
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <div className="w-2 h-2 rounded-full bg-primary animate-pulse-record" />
-                  <span className="text-sm">Listening...</span>
+                  <span className="text-sm">Listening... speak now</span>
                 </div>
               </div>
             )}
@@ -186,6 +186,15 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
                 </div>
               </motion.div>
             ))}
+            {/* Interim (live) transcription */}
+            {interimText && (
+              <div className="p-3 rounded-lg border border-border/50 bg-card/50">
+                <div className="flex items-start gap-2">
+                  <MicVocal className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5 animate-pulse" />
+                  <p className="text-sm text-muted-foreground italic">{interimText}</p>
+                </div>
+              </div>
+            )}
             <div ref={transcriptEndRef} />
           </div>
 
@@ -193,7 +202,7 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
           <div className="p-4 border-t border-border bg-card">
             <div className="flex justify-center">
               {!isRecording ? (
-                <Button variant="hero" size="lg" className="px-10 py-6" onClick={startRecording}>
+                <Button variant="hero" size="lg" className="px-10 py-6" onClick={startRecording} disabled={!isSupported}>
                   <Mic className="w-5 h-5" />
                   Start Recording
                 </Button>
