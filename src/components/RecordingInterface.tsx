@@ -110,6 +110,7 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
     setTranscript([]);
     setElapsed(0);
     entryIdRef.current = 0;
+    resetSession();
     startListening();
   };
 
