@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, MicOff, Shield, AlertTriangle, ArrowLeft, MicVocal } from "lucide-react";
+import { Mic, MicOff, Shield, AlertTriangle, ArrowLeft, MicVocal, ShieldCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import RightsPanel from "./RightsPanel";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { analyzeText, resetSession, type AnalysisResult } from "@/lib/analyzeApi";
 
 interface TranscriptEntry {
   id: number;
@@ -11,6 +12,9 @@ interface TranscriptEntry {
   text: string;
   flagged: boolean;
   flagReason?: string;
+  severity?: "DANGER" | "CAUTION" | "SAFE";
+  analysis?: AnalysisResult | null;
+  analyzing?: boolean;
 }
 
 const DANGEROUS_PATTERNS = [
@@ -42,20 +46,44 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
   };
 
   const handleSpeechResult = useCallback((text: string) => {
-    const flagReason = checkDangerous(text);
+    const localFlagReason = checkDangerous(text);
     const id = entryIdRef.current++;
     const entry: TranscriptEntry = {
       id,
       timestamp: formatTime(elapsed),
       text,
-      flagged: !!flagReason,
-      flagReason: flagReason || undefined,
+      flagged: !!localFlagReason,
+      flagReason: localFlagReason || undefined,
+      analyzing: true,
     };
     setTranscript((prev) => [...prev, entry]);
-    if (flagReason) {
-      setActiveAlert(flagReason);
-      setTimeout(() => setActiveAlert(null), 4000);
-    }
+
+    // Call AI analysis API
+    analyzeText(text).then((result) => {
+      setTranscript((prev) =>
+        prev.map((e) =>
+          e.id === id
+            ? {
+                ...e,
+                analysis: result,
+                severity: result?.severity,
+                analyzing: false,
+                flagged: result?.severity === "DANGER" || !!localFlagReason,
+                flagReason: result?.severity === "DANGER"
+                  ? result.message
+                  : localFlagReason || undefined,
+              }
+            : e
+        )
+      );
+      if (result && result.severity === "DANGER") {
+        setActiveAlert(result.message);
+        setTimeout(() => setActiveAlert(null), 5000);
+      } else if (result && result.severity === "CAUTION") {
+        setActiveAlert(result.message);
+        setTimeout(() => setActiveAlert(null), 3000);
+      }
+    });
   }, [elapsed]);
 
   const { isListening, isSupported, interimText, start: startListening, stop: stopListening } =
@@ -82,6 +110,7 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
     setTranscript([]);
     setElapsed(0);
     entryIdRef.current = 0;
+    resetSession();
     startListening();
   };
 
@@ -159,33 +188,79 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
                 </div>
               </div>
             )}
-            {transcript.map((entry) => (
-              <motion.div
-                key={entry.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`p-3 rounded-lg border ${
-                  entry.flagged
-                    ? "border-danger/40 bg-danger/5"
-                    : "border-border bg-card"
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">
-                    {entry.timestamp}
-                  </span>
-                  <div className="flex-1">
-                    <p className="text-sm text-foreground">{entry.text}</p>
-                    {entry.flagged && entry.flagReason && (
-                      <div className="mt-2 flex items-start gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 text-danger shrink-0 mt-0.5" />
-                        <p className="text-xs font-medium text-danger">{entry.flagReason}</p>
-                      </div>
-                    )}
+            {transcript.map((entry) => {
+              const severityStyles = {
+                DANGER: "border-danger/40 bg-danger/5",
+                CAUTION: "border-warning/40 bg-warning/5",
+                SAFE: "border-safe/40 bg-safe/5",
+              };
+              const borderClass = entry.severity
+                ? severityStyles[entry.severity]
+                : entry.flagged
+                  ? "border-danger/40 bg-danger/5"
+                  : "border-border bg-card";
+
+              return (
+                <motion.div
+                  key={entry.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`p-3 rounded-lg border ${borderClass}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="text-xs font-mono text-muted-foreground shrink-0 mt-0.5">
+                      {entry.timestamp}
+                    </span>
+                    <div className="flex-1">
+                      <p className="text-sm text-foreground">{entry.text}</p>
+
+                      {/* Analyzing spinner */}
+                      {entry.analyzing && (
+                        <p className="text-xs text-muted-foreground mt-1.5 animate-pulse">
+                          🔍 Analyzing...
+                        </p>
+                      )}
+
+                      {/* AI Analysis result */}
+                      {entry.analysis && (
+                        <div className="mt-2 flex items-start gap-1.5">
+                          {entry.severity === "DANGER" && (
+                            <ShieldAlert className="w-3.5 h-3.5 text-danger shrink-0 mt-0.5" />
+                          )}
+                          {entry.severity === "CAUTION" && (
+                            <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0 mt-0.5" />
+                          )}
+                          {entry.severity === "SAFE" && (
+                            <ShieldCheck className="w-3.5 h-3.5 text-safe shrink-0 mt-0.5" />
+                          )}
+                          <div>
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                              entry.severity === "DANGER" ? "text-danger"
+                                : entry.severity === "CAUTION" ? "text-warning"
+                                : "text-safe"
+                            }`}>
+                              {entry.severity}
+                            </span>
+                            <p className={`text-xs font-medium ${
+                              entry.severity === "DANGER" ? "text-danger"
+                                : entry.severity === "CAUTION" ? "text-warning"
+                                : "text-safe"
+                            }`}>
+                              {entry.analysis.message}
+                            </p>
+                            {entry.analysis.legal_reference && (
+                              <p className="text-[10px] text-muted-foreground mt-0.5">
+                                📖 {entry.analysis.legal_reference}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
             {/* Interim (live) transcription */}
             {interimText && (
               <div className="p-3 rounded-lg border border-border/50 bg-card/50">
