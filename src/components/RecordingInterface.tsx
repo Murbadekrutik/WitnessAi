@@ -32,7 +32,34 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
   const [activeAlert, setActiveAlert] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
-  const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
+  const entryIdRef = useRef(0);
+
+  const checkDangerous = (text: string) => {
+    for (const { pattern, reason } of DANGEROUS_PATTERNS) {
+      if (pattern.test(text)) return reason;
+    }
+    return null;
+  };
+
+  const handleSpeechResult = useCallback((text: string) => {
+    const flagReason = checkDangerous(text);
+    const id = entryIdRef.current++;
+    const entry: TranscriptEntry = {
+      id,
+      timestamp: formatTime(elapsed),
+      text,
+      flagged: !!flagReason,
+      flagReason: flagReason || undefined,
+    };
+    setTranscript((prev) => [...prev, entry]);
+    if (flagReason) {
+      setActiveAlert(flagReason);
+      setTimeout(() => setActiveAlert(null), 4000);
+    }
+  }, [elapsed]);
+
+  const { isListening, isSupported, interimText, start: startListening, stop: stopListening } =
+    useSpeechRecognition({ onResult: handleSpeechResult });
 
   useEffect(() => {
     if (!isRecording) return;
@@ -44,41 +71,23 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [transcript]);
 
-  const checkDangerous = (text: string) => {
-    for (const { pattern, reason } of DANGEROUS_PATTERNS) {
-      if (pattern.test(text)) return reason;
-    }
-    return null;
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
   const startRecording = () => {
     setIsRecording(true);
     setTranscript([]);
     setElapsed(0);
-
-    timeoutRefs.current = SIMULATED_TRANSCRIPT.map((item, i) =>
-      setTimeout(() => {
-        const flagReason = checkDangerous(item.text);
-        const entry: TranscriptEntry = {
-          id: i,
-          timestamp: formatTime(item.delay / 1000),
-          text: item.text,
-          flagged: !!flagReason,
-          flagReason: flagReason || undefined,
-        };
-        setTranscript((prev) => [...prev, entry]);
-        if (flagReason) {
-          setActiveAlert(flagReason);
-          setTimeout(() => setActiveAlert(null), 4000);
-        }
-      }, item.delay)
-    );
+    entryIdRef.current = 0;
+    startListening();
   };
 
   const stopRecording = () => {
     setIsRecording(false);
-    timeoutRefs.current.forEach(clearTimeout);
-    timeoutRefs.current = [];
+    stopListening();
   };
 
   const formatTime = (seconds: number) => {
