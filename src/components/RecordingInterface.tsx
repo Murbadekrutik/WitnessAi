@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
-import { Mic, MicOff, Shield, AlertTriangle, ArrowLeft } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Mic, MicOff, Shield, AlertTriangle, ArrowLeft, MicVocal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import RightsPanel from "./RightsPanel";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
 interface TranscriptEntry {
   id: number;
@@ -21,16 +22,6 @@ const DANGEROUS_PATTERNS = [
   { pattern: /tell (me|us) (the truth|everything|what happened)/i, reason: "You have the right to remain silent under Article 20(3)." },
   { pattern: /you (better|must|have to) (answer|tell|speak|talk)/i, reason: "This is coercion. You are NOT compelled to speak." },
 ];
-
-const SIMULATED_TRANSCRIPT: { text: string; delay: number }[] = [
-  { text: "Officer: Please state your name for the record.", delay: 2000 },
-  { text: "Officer: Where were you last night between 10 PM and 2 AM?", delay: 4000 },
-  { text: "Officer: We have witnesses. You better tell us the truth.", delay: 7000 },
-  { text: "Officer: Did you do it? Just confess and it will be easier.", delay: 10000 },
-  { text: "Officer: Sign this document, it's just a formality.", delay: 13000 },
-  { text: "Officer: Who else was with you that night?", delay: 16000 },
-];
-
 interface RecordingInterfaceProps {
   onBack: () => void;
 }
