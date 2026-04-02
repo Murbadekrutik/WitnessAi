@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Mic, MicOff, Shield, AlertTriangle, ArrowLeft, MicVocal } from "lucide-react";
+import { Mic, MicOff, Shield, AlertTriangle, ArrowLeft, MicVocal, ShieldCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import RightsPanel from "./RightsPanel";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
+import { analyzeText, resetSession, type AnalysisResult } from "@/lib/analyzeApi";
 
 interface TranscriptEntry {
   id: number;
@@ -11,6 +12,9 @@ interface TranscriptEntry {
   text: string;
   flagged: boolean;
   flagReason?: string;
+  severity?: "DANGER" | "CAUTION" | "SAFE";
+  analysis?: AnalysisResult | null;
+  analyzing?: boolean;
 }
 
 const DANGEROUS_PATTERNS = [
