@@ -46,20 +46,44 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
   };
 
   const handleSpeechResult = useCallback((text: string) => {
-    const flagReason = checkDangerous(text);
+    const localFlagReason = checkDangerous(text);
     const id = entryIdRef.current++;
     const entry: TranscriptEntry = {
       id,
       timestamp: formatTime(elapsed),
       text,
-      flagged: !!flagReason,
-      flagReason: flagReason || undefined,
+      flagged: !!localFlagReason,
+      flagReason: localFlagReason || undefined,
+      analyzing: true,
     };
     setTranscript((prev) => [...prev, entry]);
-    if (flagReason) {
-      setActiveAlert(flagReason);
-      setTimeout(() => setActiveAlert(null), 4000);
-    }
+
+    // Call AI analysis API
+    analyzeText(text).then((result) => {
+      setTranscript((prev) =>
+        prev.map((e) =>
+          e.id === id
+            ? {
+                ...e,
+                analysis: result,
+                severity: result?.severity,
+                analyzing: false,
+                flagged: result?.severity === "DANGER" || !!localFlagReason,
+                flagReason: result?.severity === "DANGER"
+                  ? result.message
+                  : localFlagReason || undefined,
+              }
+            : e
+        )
+      );
+      if (result && result.severity === "DANGER") {
+        setActiveAlert(result.message);
+        setTimeout(() => setActiveAlert(null), 5000);
+      } else if (result && result.severity === "CAUTION") {
+        setActiveAlert(result.message);
+        setTimeout(() => setActiveAlert(null), 3000);
+      }
+    });
   }, [elapsed]);
 
   const { isListening, isSupported, interimText, start: startListening, stop: stopListening } =
