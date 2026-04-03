@@ -1,4 +1,5 @@
-const API_URL = "https://8000-firebase-witnessai-1774625148473.cluster-ys234awlzbhwoxmkkse6qo3fz6.cloudworkstations.dev/api/analyze";
+const RAW_API_URL = "https://8000-firebase-witnessai-1774625148473.cluster-ys234awlzbhwoxmkkse6qo3fz6.cloudworkstations.dev/api/analyze";
+const API_URL = `https://corsproxy.io/?url=${encodeURIComponent(RAW_API_URL)}`;
 
 export interface AnalysisResult {
   severity: "DANGER" | "CAUTION" | "SAFE";
