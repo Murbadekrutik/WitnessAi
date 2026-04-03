@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import RightsPanel from "./RightsPanel";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { analyzeText, resetSession, type AnalysisResult } from "@/lib/analyzeApi";
+import { analyzeText, resetSession } from "@/lib/analyzeApi";
+import type { AnalysisResult } from "@/lib/analysisTypes";
+import { analyzeTextLocally, shouldShowAlert } from "@/lib/localAnalysis";
 
 interface TranscriptEntry {
   id: number;
@@ -17,15 +19,6 @@ interface TranscriptEntry {
   analyzing?: boolean;
 }
 
-const DANGEROUS_PATTERNS = [
-  { pattern: /where were you/i, reason: "You are NOT required to provide your location history." },
-  { pattern: /did you (do|commit|steal|kill|hit)/i, reason: "You have the right to remain silent. Do NOT answer." },
-  { pattern: /confess|admit|accept/i, reason: "⚠️ DANGER: You cannot be compelled to confess. Article 20(3)." },
-  { pattern: /sign (this|here|the document)/i, reason: "Do NOT sign without reading. Ask for a copy first." },
-  { pattern: /who (else |was )?with you/i, reason: "You are not obligated to name others." },
-  { pattern: /tell (me|us) (the truth|everything|what happened)/i, reason: "You have the right to remain silent under Article 20(3)." },
-  { pattern: /you (better|must|have to) (answer|tell|speak|talk)/i, reason: "This is coercion. You are NOT compelled to speak." },
-];
 interface RecordingInterfaceProps {
   onBack: () => void;
 }
@@ -38,13 +31,6 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const entryIdRef = useRef(0);
   const alertTimeoutRef = useRef<number | null>(null);
-
-  const checkDangerous = useCallback((text: string) => {
-    for (const { pattern, reason } of DANGEROUS_PATTERNS) {
-      if (pattern.test(text)) return reason;
-    }
-    return null;
-  }, []);
 
   const showAlert = useCallback((message: string, severity: "DANGER" | "CAUTION" = "DANGER") => {
     if (alertTimeoutRef.current) {
@@ -59,30 +45,27 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
   }, []);
 
   const handleSpeechResult = useCallback((text: string) => {
-    const localFlagReason = checkDangerous(text);
-    const fallbackAnalysis: AnalysisResult | null = localFlagReason
-      ? {
-          severity: "DANGER",
-          message: localFlagReason,
-        }
-      : null;
+    const immediateAnalysis = analyzeTextLocally(text);
+    const flaggedImmediately = shouldShowAlert(immediateAnalysis);
     const id = entryIdRef.current++;
     const entry: TranscriptEntry = {
       id,
       timestamp: formatTime(elapsed),
       text,
-      flagged: !!localFlagReason,
-      flagReason: localFlagReason || undefined,
-      analyzing: true,
+      flagged: flaggedImmediately,
+      flagReason: flaggedImmediately ? immediateAnalysis.message : undefined,
+      severity: immediateAnalysis.severity,
+      analysis: immediateAnalysis,
+      analyzing: false,
     };
     setTranscript((prev) => [...prev, entry]);
 
-    if (localFlagReason) {
-      showAlert(localFlagReason, "DANGER");
+    if (flaggedImmediately) {
+      showAlert(immediateAnalysis.message, immediateAnalysis.severity);
     }
 
-    analyzeText(text).then((result) => {
-      const resolvedAnalysis = result ?? fallbackAnalysis;
+    analyzeText(text).then((resolvedAnalysis: AnalysisResult) => {
+      const shouldAlertFromResolved = shouldShowAlert(resolvedAnalysis);
 
       setTranscript((prev) =>
         prev.map((e) =>
@@ -90,23 +73,24 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
             ? {
                 ...e,
                 analysis: resolvedAnalysis,
-                severity: resolvedAnalysis?.severity,
+                severity: resolvedAnalysis.severity,
                 analyzing: false,
-                flagged: resolvedAnalysis?.severity === "DANGER" || !!localFlagReason,
-                flagReason:
-                  resolvedAnalysis?.severity === "DANGER"
-                    ? resolvedAnalysis.message
-                    : localFlagReason || undefined,
+                flagged: shouldAlertFromResolved,
+                flagReason: shouldAlertFromResolved ? resolvedAnalysis.message : undefined,
               }
             : e
         )
       );
 
-      if (result?.severity === "DANGER" || result?.severity === "CAUTION") {
-        showAlert(result.message, result.severity);
+      if (
+        shouldAlertFromResolved &&
+        (resolvedAnalysis.severity !== immediateAnalysis.severity ||
+          resolvedAnalysis.message !== immediateAnalysis.message)
+      ) {
+        showAlert(resolvedAnalysis.message, resolvedAnalysis.severity);
       }
     });
-  }, [checkDangerous, elapsed, showAlert]);
+  }, [elapsed, showAlert]);
 
   const { isListening, isSupported, interimText, start: startListening, stop: stopListening } =
     useSpeechRecognition({ onResult: handleSpeechResult });

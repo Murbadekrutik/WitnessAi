@@ -29,17 +29,24 @@ export const useSpeechRecognition = ({ onResult, lang = "en-IN" }: UseSpeechReco
     recognition.lang = lang;
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let finalText = "";
-      let interim = "";
+      const finalChunks: string[] = [];
+      const interimChunks: string[] = [];
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
+        const transcript = result[0].transcript.trim();
+
+        if (!transcript) continue;
+
         if (result.isFinal) {
-          finalText += result[0].transcript.trim();
+          finalChunks.push(transcript);
         } else {
-          interim += result[0].transcript;
+          interimChunks.push(transcript);
         }
       }
+
+      const finalText = finalChunks.join(" ").trim();
+      const interim = interimChunks.join(" ").trim();
 
       setInterimText(interim);
 
