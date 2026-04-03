@@ -37,16 +37,35 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
   const [elapsed, setElapsed] = useState(0);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const entryIdRef = useRef(0);
+  const alertTimeoutRef = useRef<number | null>(null);
 
-  const checkDangerous = (text: string) => {
+  const checkDangerous = useCallback((text: string) => {
     for (const { pattern, reason } of DANGEROUS_PATTERNS) {
       if (pattern.test(text)) return reason;
     }
     return null;
-  };
+  }, []);
+
+  const showAlert = useCallback((message: string, severity: "DANGER" | "CAUTION" = "DANGER") => {
+    if (alertTimeoutRef.current) {
+      window.clearTimeout(alertTimeoutRef.current);
+    }
+
+    setActiveAlert(message);
+    alertTimeoutRef.current = window.setTimeout(() => {
+      setActiveAlert(null);
+      alertTimeoutRef.current = null;
+    }, severity === "CAUTION" ? 3000 : 5000);
+  }, []);
 
   const handleSpeechResult = useCallback((text: string) => {
     const localFlagReason = checkDangerous(text);
+    const fallbackAnalysis: AnalysisResult | null = localFlagReason
+      ? {
+          severity: "DANGER",
+          message: localFlagReason,
+        }
+      : null;
     const id = entryIdRef.current++;
     const entry: TranscriptEntry = {
       id,
@@ -58,36 +77,47 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
     };
     setTranscript((prev) => [...prev, entry]);
 
-    // Call AI analysis API
+    if (localFlagReason) {
+      showAlert(localFlagReason, "DANGER");
+    }
+
     analyzeText(text).then((result) => {
+      const resolvedAnalysis = result ?? fallbackAnalysis;
+
       setTranscript((prev) =>
         prev.map((e) =>
           e.id === id
             ? {
                 ...e,
-                analysis: result,
-                severity: result?.severity,
+                analysis: resolvedAnalysis,
+                severity: resolvedAnalysis?.severity,
                 analyzing: false,
-                flagged: result?.severity === "DANGER" || !!localFlagReason,
-                flagReason: result?.severity === "DANGER"
-                  ? result.message
-                  : localFlagReason || undefined,
+                flagged: resolvedAnalysis?.severity === "DANGER" || !!localFlagReason,
+                flagReason:
+                  resolvedAnalysis?.severity === "DANGER"
+                    ? resolvedAnalysis.message
+                    : localFlagReason || undefined,
               }
             : e
         )
       );
-      if (result && result.severity === "DANGER") {
-        setActiveAlert(result.message);
-        setTimeout(() => setActiveAlert(null), 5000);
-      } else if (result && result.severity === "CAUTION") {
-        setActiveAlert(result.message);
-        setTimeout(() => setActiveAlert(null), 3000);
+
+      if (result?.severity === "DANGER" || result?.severity === "CAUTION") {
+        showAlert(result.message, result.severity);
       }
     });
-  }, [elapsed]);
+  }, [checkDangerous, elapsed, showAlert]);
 
   const { isListening, isSupported, interimText, start: startListening, stop: stopListening } =
     useSpeechRecognition({ onResult: handleSpeechResult });
+
+  useEffect(() => {
+    return () => {
+      if (alertTimeoutRef.current) {
+        window.clearTimeout(alertTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isRecording) return;
@@ -106,6 +136,12 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
   };
 
   const startRecording = () => {
+    if (alertTimeoutRef.current) {
+      window.clearTimeout(alertTimeoutRef.current);
+      alertTimeoutRef.current = null;
+    }
+
+    setActiveAlert(null);
     setIsRecording(true);
     setTranscript([]);
     setElapsed(0);
@@ -115,6 +151,12 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
   };
 
   const stopRecording = () => {
+    if (alertTimeoutRef.current) {
+      window.clearTimeout(alertTimeoutRef.current);
+      alertTimeoutRef.current = null;
+    }
+
+    setActiveAlert(null);
     setIsRecording(false);
     stopListening();
   };
