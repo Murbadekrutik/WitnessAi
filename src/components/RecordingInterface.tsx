@@ -45,6 +45,13 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
     }
 
     setActiveAlert({ message, severity });
+
+    // Vibrate device if supported
+    if (navigator.vibrate) {
+      const pattern = severity === "DANGER" ? [200, 100, 200, 100, 300] : severity === "CAUTION" ? [150, 80, 150] : [100];
+      navigator.vibrate(pattern);
+    }
+
     alertTimeoutRef.current = window.setTimeout(() => {
       setActiveAlert(null);
       alertTimeoutRef.current = null;
