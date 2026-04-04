@@ -147,7 +147,12 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
 
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className={`min-h-screen flex flex-col border-4 transition-colors ${
+      activeAlert ? (
+        transcript.some(e => e.severity === "DANGER" && e.flagged) ? "blink-danger" :
+        transcript.some(e => e.severity === "CAUTION" && e.flagged) ? "blink-caution" : "blink-safe"
+      ) : "border-transparent"
+    }`}>
       {/* Top bar */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
         <Button variant="ghost" size="sm" onClick={onBack}>
