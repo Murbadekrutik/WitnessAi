@@ -102,4 +102,31 @@
   .animate-pulse-record {
     animation: pulseRecord 1.5s ease-in-out infinite;
   }
+
+  @keyframes blinkDanger {
+    0%, 100% { border-color: hsl(0 72% 51% / 0.8); box-shadow: 0 0 12px 2px hsl(0 72% 51% / 0.3); }
+    50% { border-color: hsl(0 72% 51% / 0.2); box-shadow: 0 0 0 0 hsl(0 72% 51% / 0); }
+  }
+
+  @keyframes blinkCaution {
+    0%, 100% { border-color: hsl(38 92% 50% / 0.8); box-shadow: 0 0 12px 2px hsl(38 92% 50% / 0.3); }
+    50% { border-color: hsl(38 92% 50% / 0.2); box-shadow: 0 0 0 0 hsl(38 92% 50% / 0); }
+  }
+
+  @keyframes blinkSafe {
+    0%, 100% { border-color: hsl(142 71% 45% / 0.8); box-shadow: 0 0 12px 2px hsl(142 71% 45% / 0.3); }
+    50% { border-color: hsl(142 71% 45% / 0.2); box-shadow: 0 0 0 0 hsl(142 71% 45% / 0); }
+  }
+
+  .blink-danger {
+    animation: blinkDanger 1s ease-in-out infinite;
+  }
+
+  .blink-caution {
+    animation: blinkCaution 1.2s ease-in-out infinite;
+  }
+
+  .blink-safe {
+    animation: blinkSafe 1.5s ease-in-out 3;
+  }
 }
