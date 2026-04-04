@@ -147,7 +147,12 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
 
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className={`min-h-screen flex flex-col border-4 transition-colors ${
+      activeAlert ? (
+        transcript.some(e => e.severity === "DANGER" && e.flagged) ? "blink-danger" :
+        transcript.some(e => e.severity === "CAUTION" && e.flagged) ? "blink-caution" : "blink-safe"
+      ) : "border-transparent"
+    }`}>
       {/* Top bar */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
         <Button variant="ghost" size="sm" onClick={onBack}>
@@ -216,14 +221,14 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
             )}
             {transcript.map((entry) => {
               const severityStyles = {
-                DANGER: "border-danger/40 bg-danger/5 blink-danger",
-                CAUTION: "border-warning/40 bg-warning/5 blink-caution",
-                SAFE: "border-safe/40 bg-safe/5 blink-safe",
+                DANGER: "border-danger/40 bg-danger/5",
+                CAUTION: "border-warning/40 bg-warning/5",
+                SAFE: "border-safe/40 bg-safe/5",
               };
               const borderClass = entry.severity
                 ? severityStyles[entry.severity]
                 : entry.flagged
-                  ? "border-danger/40 bg-danger/5 blink-danger"
+                  ? "border-danger/40 bg-danger/5"
                   : "border-border bg-card";
 
               return (
