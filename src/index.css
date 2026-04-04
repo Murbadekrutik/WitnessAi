@@ -127,6 +127,6 @@
   }
 
   .blink-safe {
-    animation: blinkSafe 1.5s ease-in-out 3;
+    animation: blinkSafe 1.5s ease-in-out infinite;
   }
 }

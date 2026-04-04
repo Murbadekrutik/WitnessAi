@@ -8,15 +8,22 @@ import { analyzeText, resetSession } from "@/lib/analyzeApi";
 import type { AnalysisResult } from "@/lib/analysisTypes";
 import { analyzeTextLocally, shouldShowAlert } from "@/lib/localAnalysis";
 
+type AlertSeverity = "DANGER" | "CAUTION" | "SAFE";
+
 interface TranscriptEntry {
   id: number;
   timestamp: string;
   text: string;
   flagged: boolean;
   flagReason?: string;
-  severity?: "DANGER" | "CAUTION" | "SAFE";
+  severity?: AlertSeverity;
   analysis?: AnalysisResult | null;
   analyzing?: boolean;
+}
+
+interface ActiveAlert {
+  message: string;
+  severity: AlertSeverity;
 }
 
 interface RecordingInterfaceProps {
@@ -26,18 +33,18 @@ interface RecordingInterfaceProps {
 const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
-  const [activeAlert, setActiveAlert] = useState<string | null>(null);
+  const [activeAlert, setActiveAlert] = useState<ActiveAlert | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const entryIdRef = useRef(0);
   const alertTimeoutRef = useRef<number | null>(null);
 
-  const showAlert = useCallback((message: string, severity: "DANGER" | "CAUTION" = "DANGER") => {
+  const showAlert = useCallback((message: string, severity: AlertSeverity = "DANGER") => {
     if (alertTimeoutRef.current) {
       window.clearTimeout(alertTimeoutRef.current);
     }
 
-    setActiveAlert(message);
+    setActiveAlert({ message, severity });
     alertTimeoutRef.current = window.setTimeout(() => {
       setActiveAlert(null);
       alertTimeoutRef.current = null;
@@ -145,14 +152,42 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
     stopListening();
   };
 
+  const appBorderClass = activeAlert
+    ? activeAlert.severity === "DANGER"
+      ? "border-danger/70 blink-danger"
+      : activeAlert.severity === "CAUTION"
+        ? "border-warning/70 blink-caution"
+        : "border-safe/70 blink-safe"
+    : "border-transparent";
+
+  const alertPanelClass = activeAlert
+    ? activeAlert.severity === "DANGER"
+      ? "bg-danger/10 border-danger/40"
+      : activeAlert.severity === "CAUTION"
+        ? "bg-warning/10 border-warning/40"
+        : "bg-safe/10 border-safe/40"
+    : "bg-card border-border";
+
+  const alertTextClass = activeAlert
+    ? activeAlert.severity === "DANGER"
+      ? "text-danger"
+      : activeAlert.severity === "CAUTION"
+        ? "text-warning"
+        : "text-safe"
+    : "text-foreground";
+
+  const alertTitle = activeAlert
+    ? activeAlert.severity === "DANGER"
+      ? "⚠️ RIGHTS ALERT"
+      : activeAlert.severity === "CAUTION"
+        ? "⚠️ CAUTION"
+        : "✅ SAFE"
+    : "";
 
   return (
-    <div className={`min-h-screen flex flex-col border-4 transition-colors ${
-      activeAlert ? (
-        transcript.some(e => e.severity === "DANGER" && e.flagged) ? "blink-danger" :
-        transcript.some(e => e.severity === "CAUTION" && e.flagged) ? "blink-caution" : "blink-safe"
-      ) : "border-transparent"
-    }`}>
+    <div className="relative min-h-screen flex flex-col">
+      <div aria-hidden="true" className={`pointer-events-none fixed inset-0 z-50 border-[6px] ${appBorderClass}`} />
+
       {/* Top bar */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
         <Button variant="ghost" size="sm" onClick={onBack}>
@@ -179,13 +214,21 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="mx-4 mt-3 p-4 rounded-lg bg-danger/10 border border-danger/40 pulse-danger"
+            className={`mx-4 mt-3 rounded-lg border p-4 ${alertPanelClass}`}
           >
             <div className="flex items-start gap-3">
-              <AlertTriangle className="w-5 h-5 text-danger shrink-0 mt-0.5" />
+              {activeAlert.severity === "DANGER" && (
+                <ShieldAlert className={`w-5 h-5 shrink-0 mt-0.5 ${alertTextClass}`} />
+              )}
+              {activeAlert.severity === "CAUTION" && (
+                <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${alertTextClass}`} />
+              )}
+              {activeAlert.severity === "SAFE" && (
+                <ShieldCheck className={`w-5 h-5 shrink-0 mt-0.5 ${alertTextClass}`} />
+              )}
               <div>
-                <p className="text-sm font-semibold text-danger">⚠️ RIGHTS ALERT</p>
-                <p className="text-sm text-foreground mt-1">{activeAlert}</p>
+                <p className={`text-sm font-semibold ${alertTextClass}`}>{alertTitle}</p>
+                <p className="text-sm text-foreground mt-1">{activeAlert.message}</p>
               </div>
             </div>
           </motion.div>
