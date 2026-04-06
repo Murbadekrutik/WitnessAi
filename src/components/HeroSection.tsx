@@ -5,9 +5,10 @@ import shieldHero from "@/assets/shield-hero.jpg";
 
 interface HeroSectionProps {
   onStartRecording: () => void;
+  onKnowYourRights: () => void;
 }
 
-const HeroSection = ({ onStartRecording }: HeroSectionProps) => {
+const HeroSection = ({ onStartRecording, onKnowYourRights }: HeroSectionProps) => {
   return (
     <section className="relative min-h-screen flex items-center justify-center px-4 overflow-hidden">
       {/* Background glow */}
@@ -48,7 +49,7 @@ const HeroSection = ({ onStartRecording }: HeroSectionProps) => {
               <Mic className="w-5 h-5" />
               Start Recording Session
             </Button>
-            <Button variant="outline" size="lg" className="text-base px-8 py-6 border-muted-foreground/20">
+            <Button variant="outline" size="lg" className="text-base px-8 py-6 border-muted-foreground/20" onClick={onKnowYourRights}>
               <FileText className="w-5 h-5" />
               Know Your Rights
             </Button>
