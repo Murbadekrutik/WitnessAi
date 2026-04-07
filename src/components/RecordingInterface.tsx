@@ -38,6 +38,8 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const entryIdRef = useRef(0);
   const alertTimeoutRef = useRef<number | null>(null);
+  const alertDebounceRef = useRef<number | null>(null);
+  const pendingAlertRef = useRef<{ message: string; severity: AlertSeverity } | null>(null);
 
   const showAlert = useCallback((message: string, severity: AlertSeverity = "DANGER") => {
     if (alertTimeoutRef.current) {
