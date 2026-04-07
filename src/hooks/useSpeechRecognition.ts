@@ -6,21 +6,47 @@ interface UseSpeechRecognitionOptions {
   sentenceDelay?: number; // ms to wait before treating accumulated text as a complete sentence
 }
 
+const normalizeTranscript = (text: string) => text.trim().replace(/\s+/g, " ");
+
+const mergeTranscript = (current: string, next: string) => {
+  const normalizedCurrent = normalizeTranscript(current);
+  const normalizedNext = normalizeTranscript(next);
+
+  if (!normalizedCurrent) return normalizedNext;
+  if (!normalizedNext) return normalizedCurrent;
+  if (normalizedCurrent === normalizedNext) return normalizedCurrent;
+  if (normalizedNext.startsWith(normalizedCurrent)) return normalizedNext;
+  if (normalizedCurrent.startsWith(normalizedNext)) return normalizedCurrent;
+
+  const currentWords = normalizedCurrent.split(" ");
+  const nextWords = normalizedNext.split(" ");
+  const maxOverlap = Math.min(currentWords.length, nextWords.length);
+
+  for (let overlap = maxOverlap; overlap > 0; overlap -= 1) {
+    if (
+      currentWords.slice(-overlap).join(" ") ===
+      nextWords.slice(0, overlap).join(" ")
+    ) {
+      return [...currentWords, ...nextWords.slice(overlap)].join(" ");
+    }
+  }
+
+  return `${normalizedCurrent} ${normalizedNext}`;
+};
+
 export const useSpeechRecognition = ({ onResult, lang = "en-IN", sentenceDelay = 2000 }: UseSpeechRecognitionOptions) => {
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const [interimText, setInterimText] = useState("");
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const shouldRestartRef = useRef(false);
-
-  // Sentence accumulation refs
   const accumulatedTextRef = useRef("");
   const flushTimerRef = useRef<number | null>(null);
   const onResultRef = useRef(onResult);
   onResultRef.current = onResult;
 
   const flushAccumulated = useCallback(() => {
-    const text = accumulatedTextRef.current.trim();
+    const text = normalizeTranscript(accumulatedTextRef.current);
     if (text) {
       onResultRef.current(text);
     }
@@ -45,39 +71,27 @@ export const useSpeechRecognition = ({ onResult, lang = "en-IN", sentenceDelay =
     recognition.lang = lang;
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const finalChunks: string[] = [];
       const interimChunks: string[] = [];
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
-        const transcript = result[0].transcript.trim();
+        const transcript = normalizeTranscript(result[0].transcript);
         if (!transcript) continue;
 
         if (result.isFinal) {
-          finalChunks.push(transcript);
+          accumulatedTextRef.current = mergeTranscript(accumulatedTextRef.current, transcript);
         } else {
           interimChunks.push(transcript);
         }
       }
 
-      const finalText = finalChunks.join(" ").trim();
-      const interim = interimChunks.join(" ").trim();
+      setInterimText(interimChunks.join(" ").trim());
 
-      setInterimText(interim);
-
-      if (finalText) {
-        // Accumulate final chunks instead of emitting immediately
-        accumulatedTextRef.current = accumulatedTextRef.current
-          ? `${accumulatedTextRef.current} ${finalText}`
-          : finalText;
-
-        // Reset the flush timer — wait for more words
+      if (accumulatedTextRef.current) {
         if (flushTimerRef.current) {
           window.clearTimeout(flushTimerRef.current);
         }
         flushTimerRef.current = window.setTimeout(flushAccumulated, sentenceDelay);
-
-        setInterimText("");
       }
     };
 
@@ -97,7 +111,6 @@ export const useSpeechRecognition = ({ onResult, lang = "en-IN", sentenceDelay =
           // Already started
         }
       } else {
-        // Flush any remaining text when stopping
         if (flushTimerRef.current) {
           window.clearTimeout(flushTimerRef.current);
         }
@@ -108,6 +121,7 @@ export const useSpeechRecognition = ({ onResult, lang = "en-IN", sentenceDelay =
 
     recognitionRef.current = recognition;
     shouldRestartRef.current = true;
+    accumulatedTextRef.current = "";
 
     try {
       recognition.start();
@@ -121,7 +135,6 @@ export const useSpeechRecognition = ({ onResult, lang = "en-IN", sentenceDelay =
     shouldRestartRef.current = false;
     setInterimText("");
 
-    // Flush remaining accumulated text
     if (flushTimerRef.current) {
       window.clearTimeout(flushTimerRef.current);
     }
@@ -134,7 +147,6 @@ export const useSpeechRecognition = ({ onResult, lang = "en-IN", sentenceDelay =
     setIsListening(false);
   }, [flushAccumulated]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (flushTimerRef.current) {
