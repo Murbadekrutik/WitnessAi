@@ -42,22 +42,34 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
   const pendingAlertRef = useRef<{ message: string; severity: AlertSeverity } | null>(null);
 
   const showAlert = useCallback((message: string, severity: AlertSeverity = "DANGER") => {
-    if (alertTimeoutRef.current) {
-      window.clearTimeout(alertTimeoutRef.current);
+    // Store the pending alert — debounce so we wait for the sentence to finish
+    pendingAlertRef.current = { message, severity };
+
+    if (alertDebounceRef.current) {
+      window.clearTimeout(alertDebounceRef.current);
     }
 
-    setActiveAlert({ message, severity });
+    alertDebounceRef.current = window.setTimeout(() => {
+      const pending = pendingAlertRef.current;
+      if (!pending) return;
+      pendingAlertRef.current = null;
 
-    // Vibrate device if supported
-    if (navigator.vibrate) {
-      const pattern = severity === "DANGER" ? [200, 100, 200, 100, 300] : severity === "CAUTION" ? [150, 80, 150] : [100];
-      navigator.vibrate(pattern);
-    }
+      if (alertTimeoutRef.current) {
+        window.clearTimeout(alertTimeoutRef.current);
+      }
 
-    alertTimeoutRef.current = window.setTimeout(() => {
-      setActiveAlert(null);
-      alertTimeoutRef.current = null;
-    }, severity === "CAUTION" ? 3000 : 5000);
+      setActiveAlert({ message: pending.message, severity: pending.severity });
+
+      if (navigator.vibrate) {
+        const pattern = pending.severity === "DANGER" ? [200, 100, 200, 100, 300] : pending.severity === "CAUTION" ? [150, 80, 150] : [100];
+        navigator.vibrate(pattern);
+      }
+
+      alertTimeoutRef.current = window.setTimeout(() => {
+        setActiveAlert(null);
+        alertTimeoutRef.current = null;
+      }, pending.severity === "CAUTION" ? 3000 : 5000);
+    }, 1500); // 1.5s debounce — waits for sentence completion
   }, []);
 
   const handleSpeechResult = useCallback((text: string) => {
@@ -113,9 +125,8 @@ const RecordingInterface = ({ onBack }: RecordingInterfaceProps) => {
 
   useEffect(() => {
     return () => {
-      if (alertTimeoutRef.current) {
-        window.clearTimeout(alertTimeoutRef.current);
-      }
+      if (alertTimeoutRef.current) window.clearTimeout(alertTimeoutRef.current);
+      if (alertDebounceRef.current) window.clearTimeout(alertDebounceRef.current);
     };
   }, []);
 
