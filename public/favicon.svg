@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Dark background matching app theme -->
+  <rect width="32" height="32" rx="7" fill="#0e1117"/>
+  <!-- Shield fill -->
+  <path d="M16 4.5L5.5 9.5V16.5c0 5.8 4.3 11.2 10.5 12.5C22.2 27.7 26.5 22.3 26.5 16.5V9.5L16 4.5z"
+        fill="#F59E0B" fill-opacity="0.18"/>
+  <!-- Shield outline -->
+  <path d="M16 4.5L5.5 9.5V16.5c0 5.8 4.3 11.2 10.5 12.5C22.2 27.7 26.5 22.3 26.5 16.5V9.5L16 4.5z"
+        stroke="#F59E0B" stroke-width="1.5" stroke-linejoin="round"/>
+  <!-- Checkmark inside shield -->
+  <path d="M12 16.5l2.8 2.8 5.7-5.7"
+        stroke="#F59E0B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
