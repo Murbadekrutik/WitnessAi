@@ -13,7 +13,7 @@ export interface ChatMessage {
   content: string;
 }
 
-const GEMINI_MODEL   = "gemini-2.0-flash-lite"; // Free tier confirmed for this key
+const GEMINI_MODEL   = "gemini-2.5-flash"; // Upgraded for better quality & rate limits
 const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
 
 // Native Gemini streaming endpoint — key is passed as a query param
