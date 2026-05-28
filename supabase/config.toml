@@ -1,1 +1,2 @@
-project_id = "scsfmssklwaemjhgxwzi"
+# DO NOT COMMIT real credentials. Set VITE_SUPABASE_PROJECT_ID in Netlify environment variables instead.
+project_id = ""
