@@ -27,7 +27,8 @@ const ChatSidebar = ({
   const [sessions, setSessions] = useState<ChatSession[]>([]);
 
   const refresh = useCallback(async () => {
-    setSessions(await listSessions());
+    const all = await listSessions();
+    setSessions(all.filter((s) => s.type === "chat"));
   }, []);
 
   useEffect(() => {
@@ -104,7 +105,7 @@ const ChatSidebar = ({
         ) : (
           sessions.map((s) => {
             const isActive = s.id === currentSessionId;
-            const questionCount = s.messages.filter((m) => m.role === "user").length;
+            const questionCount = s.messages?.filter((m) => m.role === "user").length ?? 0;
             return (
               <button
                 key={s.id}

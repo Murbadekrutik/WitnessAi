@@ -4,7 +4,7 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
-  Send, Bot, User, ArrowLeft, Shield, Sparkles, Copy, Check, History,
+  Send, Bot, User, ArrowLeft, Shield, Sparkles, Copy, Check, History, WifiOff, KeyRound, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ReactMarkdown from "react-markdown";
@@ -49,6 +49,9 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
   const [showHistory, setShowHistory]     = useState(false);
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
   const [detailSession, setDetailSession] = useState<ChatSession | null>(null);
+  const [backendDown, setBackendDown]     = useState(false);
+  const [missingApiKey, setMissingApiKey] = useState(false);
+  const [rateLimited, setRateLimited]     = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
@@ -108,14 +111,30 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
         finalMessages = withFallback;
       }
     } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "";
+      const isNoKey      = errMsg.startsWith("NO_API_KEY:");
+      const isRateLimit  = errMsg.startsWith("RATE_LIMIT:");
+      const isNetworkError = !isNoKey && !isRateLimit && err instanceof TypeError && errMsg.toLowerCase().includes("fetch");
+
+      if (isNoKey)     setMissingApiKey(true);
+      else if (isRateLimit) {
+        setRateLimited(true);
+        // Auto-clear after 65 s so user knows when to retry
+        setTimeout(() => setRateLimited(false), 65_000);
+      }
+      else if (isNetworkError) setBackendDown(true);
+
+      const userFacingMsg = isNoKey
+        ? "No Gemini API key found. Add VITE_GEMINI_API_KEY to your .env file and restart the dev server. See the banner above for instructions."
+        : isRateLimit
+          ? "Rate limit reached — please wait about 60 seconds then try again."
+          : isNetworkError
+            ? "The AI backend is currently unreachable. Please check your internet connection and try again."
+            : `Connection error — ${errMsg || "Unknown error"}. Please try again.`;
+
       const withError: ChatMessage[] = [
         ...updatedMessages,
-        {
-          role: "assistant",
-          content: err instanceof Error
-            ? `I wasn't able to connect — ${err.message} Please try again.`
-            : "I wasn't able to connect. Please check your connection and try again.",
-        },
+        { role: "assistant", content: userFacingMsg },
       ];
       setMessages(withError);
       finalMessages = withError;
@@ -145,6 +164,59 @@ const ChatInterface = ({ onBack }: ChatInterfaceProps) => {
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
+
+      {/* ── Rate-limited banner ───────────────────────────────────────────── */}
+      {rateLimited && (
+        <div className="flex items-center gap-2.5 px-4 py-2.5 bg-secondary/80 border-b border-border text-xs text-muted-foreground shrink-0">
+          <Clock className="w-3.5 h-3.5 shrink-0 text-warning" />
+          <span>
+            <strong className="text-warning">Rate limit reached.</strong>{" "}
+            The Gemini free tier allows 15 requests/minute. Please wait ~60 seconds, then try again.
+          </span>
+        </div>
+      )}
+
+      {/* ── Missing API key banner ───────────────────────────────────────── */}
+      {missingApiKey && (
+        <div className="flex items-start gap-2.5 px-4 py-3 bg-primary/10 border-b border-primary/30 text-xs text-primary shrink-0">
+          <KeyRound className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <span className="leading-relaxed">
+            <strong>Gemini API key not configured.</strong>{" "}Follow these steps:
+            {" "}1.{" "}
+            <a
+              href="https://aistudio.google.com/apikey"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:opacity-80"
+            >
+              Get a free key at aistudio.google.com
+            </a>
+            {" "}2. Open <code className="bg-primary/20 px-1 rounded">.env</code> in the project root and add:
+            {" "}<code className="bg-primary/20 px-1 rounded">VITE_GEMINI_API_KEY=AIza...</code>
+            {" "}3. Restart the dev server (<code className="bg-primary/20 px-1 rounded">npm run dev</code>).
+          </span>
+        </div>
+      )}
+
+      {/* ── Backend-down banner ──────────────────────────────────────────── */}
+      {backendDown && !missingApiKey && (
+        <div className="flex items-center gap-2.5 px-4 py-2.5 bg-warning/10 border-b border-warning/30 text-xs text-warning shrink-0">
+          <WifiOff className="w-3.5 h-3.5 shrink-0" />
+          <span>
+            <strong>AI backend offline</strong> — The Supabase project appears to be paused.
+            {" "}Visit{" "}
+            <a
+              href="https://supabase.com/dashboard"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              supabase.com/dashboard
+            </a>
+            {" "}to unpause it.
+          </span>
+        </div>
+      )}
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <header className="relative flex items-center px-4 py-3.5 border-b border-border bg-card shrink-0">
